@@ -38,8 +38,17 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'ping'
+    'rest_framework_simplejwt',
+    'ping',
+    'users'
 ]
+AUTH_USER_MODEL = 'users.Users'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    )
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
