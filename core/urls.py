@@ -21,4 +21,5 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('ping/', include('ping.urls')),
     path('auth/', include('users.urls')),
+    path('api/', include('playback.urls')),
 ]
