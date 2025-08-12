@@ -1,1 +1,1 @@
-web: gunicorn netflix_backend.wsgi:application --workers 3
+web: gunicorn core.wsgi:application --workers 3
