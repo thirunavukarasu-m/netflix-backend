@@ -155,3 +155,19 @@ SIMPLE_JWT = {
 
 PLAYBACK_TOKEN_TTL_SECONDS = 60
 SESSION_INACTIVITY_TIMEOUT = 240
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "dev": {"format": "[%(levelname)s] %(asctime)s %(name)s:%(lineno)d - %(message)s"},
+    },
+    "handlers": {
+        "console": {"class": "logging.StreamHandler", "formatter": "dev"},
+    },
+    "root": {"handlers": ["console"], "level": "INFO"},
+    "loggers": {
+        "playback": {"handlers": ["console"], "level": "DEBUG", "propagate": False},
+        "django.db.backends": {"handlers": ["console"], "level": "WARNING"},
+    },
+}

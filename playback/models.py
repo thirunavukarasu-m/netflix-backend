@@ -18,7 +18,7 @@ class UserSubscriptionPlan(models.Model):
     user = models.OneToOneField(User, related_name='subscription', on_delete=models.CASCADE)
     plan = models.ForeignKey(SubscriptionPlan, on_delete=models.PROTECT)
     active = models.BooleanField(default=True)
-    start_at = models.DateTimeField(default=timezone.now())
+    start_at = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
         return f'{self.user} --> {self.plan}'
@@ -70,8 +70,8 @@ class WatchSession(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='watch_sessions')
     device = models.ForeignKey(Device, on_delete=models.CASCADE, related_name='watch_sessions')
     movie = models.ForeignKey(Movie, on_delete=models.CASCADE, related_name='watch_sessions')
-    started_at = models.DateTimeField(default=timezone.now())
-    last_heartbeat = models.DateTimeField(default=timezone.now())
+    started_at = models.DateTimeField(default=timezone.now)
+    last_heartbeat = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=10, choices=SESSION_STATUS, default="active")
     created_at = models.DateTimeField(auto_now=True)
     class Meta:
@@ -81,7 +81,7 @@ class WatchSession(models.Model):
         ]
     
     def touch(self):
-        self.last_heartbeat = timezone.now()
+        self.last_heartbeat = timezone.now
         self.save(update_fields=['last_heartbeat'])
     
     def end(self):

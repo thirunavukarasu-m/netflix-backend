@@ -9,7 +9,9 @@ from rest_framework import status
 from django.shortcuts import get_object_or_404
 from .models import Device, Movie, WatchSession, UserSubscriptionPlan
 from .serializers import DeviceSerializer, MovieSerializer, WatchSessionSerializer
+import logging
 
+logger = logging.getLogger(__name__)
 SESSION_INACTIVITY_TIMEOUT = getattr(settings, 'SESSION_INACTIVITY_TIMEOUT', 120)
 
 class DeviceRegisterView(APIView):
@@ -95,7 +97,6 @@ class PlaybackStartView(APIView):
         except UserSubscriptionPlan.DoesNotExist:
             return Response({'error': "User does not have a subscription."}, status=status.HTTP_403_FORBIDDEN)
 
-        print(WatchSession.objects.filter(user=user, status='active', device = device, movie = movie).exists())
         ws = WatchSession.objects.filter(user=user, status='active', device = device, movie = movie).exists()
         if ws:
             return Response({"error": "Already a session is active on this device"}, status= status.HTTP_409_CONFLICT)
@@ -116,7 +117,7 @@ class PlaybackStartView(APIView):
 
         
         ws = WatchSession.objects.create(user = user, movie = movie, device = device)
-
+        logger.debug("start called user=%s device=%s", user.id, device_id)
         return Response({
             "watch_session_id": ws.id,
             "movie_title": movie.title,
