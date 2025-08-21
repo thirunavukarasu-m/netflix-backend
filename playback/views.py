@@ -7,8 +7,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
-from .models import Device, Movie, WatchSession, UserSubscriptionPlan
-from .serializers import DeviceSerializer, MovieSerializer, WatchSessionSerializer
+from .models import Device, Movie, WatchSession, UserSubscriptionPlan, Genre
+from .serializers import DeviceSerializer, MovieSerializer, WatchSessionSerializer, GenreSerializer
+from django.db import connection
+from django.db.models import Q
+from rest_framework import generics
+from rest_framework.pagination import PageNumberPagination
+from django.utils.text import slugify
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,16 +64,16 @@ class MovieListCreateView(APIView):
 
     def get(self, request):
         movie_qs = Movie.objects.filter(is_active = True)
-        movie_serialzer = MovieSerializer(movie_qs, many = True)
-        return Response(movie_serialzer.data)
+        movie_serializer = MovieSerializer(movie_qs, many = True)
+        return Response(movie_serializer.data)
 
     def post(self, request):
-        serializer = MovieSerializer(data = request.data)
+        is_bulk = isinstance(request.data, list)
+        serializer = MovieSerializer(data = request.data, many = is_bulk)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status= status.HTTP_400_BAD_REQUEST)
-
 
 class PlaybackStartView(APIView):
     permission_classes = [IsAuthenticated]
@@ -159,7 +164,6 @@ class PlaybackStopView(APIView):
             "message": "Session terminated."
         }, status= status.HTTP_200_OK)
     
-
 class ActiveSessionsView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -168,3 +172,96 @@ class ActiveSessionsView(APIView):
         print(ws)
         serializer = WatchSessionSerializer(ws, many = True)
         return Response(serializer.data)
+
+class GenreBulkUpsertView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        """
+        Body can be:
+        ["Action","Drama","Sci-Fi"]
+        or
+        [{"name":"Action"}, {"name":"Sci Fi"}, {"name":"Drama","slug":"drama"}]
+        """
+        items = request.data
+        if not isinstance(items, list):
+            return Response({"detail": "Expected a JSON array"}, status=400)
+
+        # Normalize to names/slugs
+        incoming = []
+        for item in items:
+            if isinstance(item, str):
+                incoming.append({"name": item.strip(), "slug": slugify(item)})
+            elif isinstance(item, dict) and "name" in item:
+                nm = item["name"].strip()
+                sl = item.get("slug") or slugify(nm)
+                incoming.append({"name": nm, "slug": sl})
+            else:
+                return Response({"detail": "Items must be strings or objects with 'name'"},
+                                status=400)
+
+        names = [g["name"] for g in incoming]
+        existing = set(Genre.objects.filter(name__in=names).values_list("name", flat=True))
+
+        to_create = [Genre(name=g["name"], slug=g["slug"]) for g in incoming if g["name"] not in existing]
+        # Best effort upsert (ignore duplicates by unique constraints)
+        if to_create:
+            Genre.objects.bulk_create(to_create, ignore_conflicts=True)
+
+        genres = Genre.objects.filter(name__in=names).order_by("name")
+        return Response(GenreSerializer(genres, many=True).data, status=status.HTTP_201_CREATED)
+    
+class MovieSearchPagination(PageNumberPagination):
+    page_size = 24
+    page_size_query_param = "page_size"
+    max_page_size = 100
+
+class MovieSearchView(generics.ListAPIView):
+    serializer_class = MovieSerializer
+    pagination_class = MovieSearchPagination
+
+    def get_queryset(self):
+        qs = (
+            Movie.objects.filter(is_active=True)
+            .prefetch_related("genres")
+            .order_by("title")
+        )
+
+        q = self.request.query_params.get("q")
+        genres = self.request.query_params.get("genres")   # comma-separated slugs or ids
+        year = self.request.query_params.get("year")
+        min_year = self.request.query_params.get("min_year")
+        max_year = self.request.query_params.get("max_year")
+        language = self.request.query_params.get("language")
+        sort = (self.request.query_params.get("sort") or "").lower()  # title|year
+
+        if genres:
+            parts = [s.strip() for s in genres.split(",") if s.strip()]
+            qs = qs.filter(Q(genres__slug__in=parts) | Q(genres__id__in=parts))
+
+        if year:
+            qs = qs.filter(release_year=year)
+        else:
+            if min_year:
+                qs = qs.filter(release_year__gte=min_year)
+            if max_year:
+                qs = qs.filter(release_year__lte=max_year)
+
+        if language:
+            qs = qs.filter(language__iexact=language)
+
+        if q:
+            # Simple, portable text match (no Postgres extensions)
+            terms = [t for t in q.split() if t]
+            for t in terms:
+                qs = qs.filter(
+                    Q(title__icontains=t) |
+                    Q(description__icontains=t)
+                )
+
+        if sort == "year":
+            qs = qs.order_by("-release_year", "title")
+        elif sort == "title":
+            qs = qs.order_by("title")
+
+        return qs.distinct()

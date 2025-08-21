@@ -115,6 +115,7 @@ class WatchSession(models.Model):
     last_heartbeat = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=10, choices=SESSION_STATUS, default="active")
     created_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
         indexes = [
             models.Index(fields=['user','status']),
