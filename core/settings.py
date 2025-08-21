@@ -106,7 +106,7 @@ if DEBUG:
     # Local database
     DATABASES = {
         'default': dj_database_url.parse(
-            "postgresql://postgres:postgres@localhost:5433/netflix_backend",
+            os.environ.get("UAT_DATABASE_URL"),
             conn_max_age=600,
             ssl_require=False  # no SSL locally
         )
