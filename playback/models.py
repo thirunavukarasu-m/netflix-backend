@@ -2,9 +2,29 @@ import uuid
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
-
+from django.utils.text import slugify
 
 User = settings.AUTH_USER_MODEL
+class Genre(models.Model):
+    name = models.CharField(max_length=64, unique=True)
+    slug = models.SlugField(max_length=80, unique=True, blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["name"]
+        indexes = [
+            models.Index(fields=["name"]),
+            models.Index(fields=["slug"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            self.slug = slugify(self.name)
+        return super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.name
 
 class SubscriptionPlan(models.Model):
     name = models.CharField(max_length=80)
@@ -24,12 +44,33 @@ class UserSubscriptionPlan(models.Model):
         return f'{self.user} --> {self.plan}'
 
 class Movie(models.Model):
-    movie_id = models.CharField(max_length=128, unique=True)
-    title = models.CharField(max_length=255)
-    duration = models.PositiveIntegerField(default=0)
-    cdn_path = models.CharField(max_length=1024, help_text = 'Path on CDN or signed URL template')
-    is_active = models.BooleanField(default=False)
+    movie_id = models.CharField(max_length=64, unique=True)
+    title = models.CharField(max_length=255, db_index=True)
+    duration = models.PositiveIntegerField(help_text="Seconds")
+    cdn_path = models.URLField()
+    is_active = models.BooleanField(default=True, db_index=True)
+    description = models.TextField(blank=True)
+    release_year = models.PositiveSmallIntegerField(null=True, blank=True)
+    maturity_rating = models.CharField(
+        max_length=16, blank=True, help_text="e.g., U, U/A 13+, PG-13, R"
+    )
+    language = models.CharField(max_length=32, blank=True)
+    genres = models.ManyToManyField(Genre, related_name="movies", blank=True)
+    cast = models.JSONField(default=list, blank=True)
+    directors = models.JSONField(default=list, blank=True)
+    tags = models.JSONField(default=list, blank=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["title"]
+        indexes = [
+            models.Index(fields=["title"]),
+            models.Index(fields=["is_active"]),
+            models.Index(fields=["release_year"]),
+            models.Index(fields=["language"]),
+        ]
 
     def __str__(self):
         return self.title
@@ -74,6 +115,7 @@ class WatchSession(models.Model):
     last_heartbeat = models.DateTimeField(default=timezone.now)
     status = models.CharField(max_length=10, choices=SESSION_STATUS, default="active")
     created_at = models.DateTimeField(auto_now=True)
+    
     class Meta:
         indexes = [
             models.Index(fields=['user','status']),

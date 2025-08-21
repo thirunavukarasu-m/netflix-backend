@@ -38,7 +38,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 DEBUG = os.environ.get("DEBUG")
 
 
-ALLOWED_HOSTS = ['127.0.0.1','render.com','netflix-backend-lncx.onrender.com']
+ALLOWED_HOSTS = ['localhost','render.com','netflix-backend-lncx.onrender.com', '127.0.0.1']
 
 
 # Application definition
@@ -100,13 +100,26 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get("DATABASE_URL"),
-        conn_max_age=600,
-        ssl_require=True
-    )
-}
+DEBUG = os.getenv("DEBUG", "True") == "True"
+
+if DEBUG:
+    # Local database
+    DATABASES = {
+        'default': dj_database_url.parse(
+            os.environ.get("UAT_DATABASE_URL"),
+            conn_max_age=600,
+            ssl_require=False  # no SSL locally
+        )
+    }
+else:
+    # Production database (from DATABASE_URL env var)
+    DATABASES = {
+        'default': dj_database_url.config(
+            default=os.environ.get("DATABASE_URL"),
+            conn_max_age=600,
+            ssl_require=True
+        )
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.2/ref/settings/#auth-password-validators
